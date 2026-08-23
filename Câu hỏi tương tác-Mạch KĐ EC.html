@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EC LAB - GIẢI CỨU TÍN HIỆU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        .font-mono-tech { font-family: 'Share Tech Mono', monospace; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden; width: 200px; background-color: #334155; color: #fff;
+            text-align: center; border-radius: 6px; padding: 8px; position: absolute;
+            z-index: 50; bottom: 125%; left: 50%; margin-left: -100px; opacity: 0;
+            transition: opacity 0.3s; font-size: 0.8rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+        
+        /* Circuit Components CSS */
+        .node { width: 16px; height: 16px; background: #94a3b8; border-radius: 50%; cursor: pointer; transition: 0.2s; border: 2px solid #334155; position: absolute; z-index: 10;}
+        .node:hover { background: #38bdf8; transform: scale(1.2); box-shadow: 0 0 10px #38bdf8; }
+        .node.active-probe-ch1 { background: #fbbf24; border-color: #f59e0b; box-shadow: 0 0 12px #f59e0b; }
+        .node.active-probe-ch2 { background: #38bdf8; border-color: #0ea5e9; box-shadow: 0 0 12px #0ea5e9; }
+        .node.active-probe-dmm { background: #ef4444; border-color: #dc2626; box-shadow: 0 0 12px #ef4444; }
+
+        /* Draggable items */
+        .draggable { cursor: grab; }
+        .draggable:active { cursor: grabbing; }
+        
+        .drop-zone { border: 2px dashed #475569; transition: 0.3s; }
+        .drop-zone.drag-over { background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; }
+        
+        /* Animations */
+        @keyframes pulse-signal { 0% { opacity: 0.2; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 15px #22c55e; } 100% { opacity: 0.2; transform: scale(0.9); } }
+        .anim-signal { animation: pulse-signal 1.5s infinite; }
+        
+        .wire-flow { stroke-dasharray: 10; animation: dash 1s linear infinite; stroke: #22c55e; }
+        @keyframes dash { to { stroke-dashoffset: -20; } }
+
+        /* Equipment Screen */
+        .screen-glow { box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(16, 185, 129, 0.3); background-color: #022c22; }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- Top Navbar -->
+    <header class="glass-panel h-16 flex items-center justify-between px-6 shrink-0 z-20">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold text-sky-400">EC LAB <span class="text-white text-sm font-normal ml-2">| GIẢI CỨU TÍN HIỆU</span></h1>
+            <div id="levelBadge" class="px-3 py-1 bg-sky-600 rounded-full text-xs font-semibold">CƠ BẢN</div>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="text-red-400 font-bold flex gap-1" id="heartsContainer">❤️❤️❤️</div>
+            <div class="text-yellow-400 font-bold">⭐ <span id="xpDisplay">0</span> XP</div>
+            <div class="flex gap-2" id="badgesContainer"></div>
+            <button onclick="openModal('teacherModal')" class="p-2 hover:bg-slate-700 rounded-lg transition" title="Chế độ giáo viên">⚙️</button>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="flex-1 relative overflow-hidden flex flex-col">
+        <!-- Message Toast -->
+        <div id="toast" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-800 border border-slate-600 text-white px-6 py-3 rounded-lg shadow-2xl z-50 transition-all duration-300 opacity-0 pointer-events-none text-center max-w-2xl">
+            <p id="toastMessage" class="text-lg"></p>
+        </div>
+
+        <!-- Station Container -->
+        <div id="stationContainer" class="flex-1 w-full h-full p-4 flex">
+            <!-- Content will be injected here by JS -->
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <!-- Intro Modal -->
+    <div id="introModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-slate-800 p-8 rounded-xl border border-slate-600 max-w-2xl text-center shadow-2xl">
+            <h2 class="text-3xl font-bold text-sky-400 mb-4">EC LAB - GIẢI CỨU TÍN HIỆU</h2>
+            <p class="text-slate-300 mb-6 text-left leading-relaxed">
+                Chào mừng Kỹ thuật viên tập sự! Hệ thống âm thanh của phòng Lab đang bị lỗi do một mạch khuếch đại dùng Transistor C1815 trục trặc.<br><br>
+                Nhiệm vụ của bạn là dựa vào <strong>Giáo trình Điện tử tương tự</strong> để: Nhận dạng, lắp ráp, đo đạc thông số DC/AC và chẩn đoán lỗi của mạch khuếch đại <strong>Emitter chung (EC)</strong>.<br><br>
+                Lưu ý: Mọi tính toán và nguyên lý phải bám sát giáo trình. Hãy chú ý sự đảo pha 180° của tín hiệu!
+            </p>
+            <div class="flex justify-center gap-4">
+                <button onclick="startGame('CƠ BẢN')" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded-lg font-bold transition">BẮT ĐẦU (CƠ BẢN)</button>
+                <button onclick="startGame('KỸ THUẬT VIÊN')" class="bg-yellow-600 hover:bg-yellow-500 text-white px-6 py-2 rounded-lg font-bold transition">KỸ THUẬT VIÊN</button>
+            </div>
+            <p class="text-xs text-slate-500 mt-4">Số liệu luyện tập được tạo để phục vụ tính toán định lượng, không phải số liệu đo thực tế của một transistor cụ thể.</p>
+        </div>
+    </div>
+
+    <!-- Teacher Modal -->
+    <div id="teacherModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-sm hidden">
+        <div class="bg-slate-800 p-8 rounded-xl border border-slate-600 w-96 shadow-2xl">
+            <h2 class="text-2xl font-bold text-white mb-4 border-b border-slate-600 pb-2">⚙️ CHẾ ĐỘ GIÁO VIÊN</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Mức độ:</label>
+                    <select id="settingLevel" class="w-full bg-slate-700 text-white p-2 rounded">
+                        <option value="CƠ BẢN">Cơ Bản</option>
+                        <option value="KỸ THUẬT VIÊN">Kỹ Thuật Viên</option>
+                        <option value="CHUYÊN GIA">Chuyên Gia</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Trạm luyện tập nhanh:</label>
+                    <button onclick="jumpToStation(0)" class="w-full text-left bg-slate-700 hover:bg-slate-600 p-2 rounded mb-1">Trạm 1: Nhận diện EC</button>
+                    <button onclick="jumpToStation(1)" class="w-full text-left bg-slate-700 hover:bg-slate-600 p-2 rounded mb-1">Trạm 2: Lắp mạch</button>
+                    <button onclick="jumpToStation(2)" class="w-full text-left bg-slate-700 hover:bg-slate-600 p-2 rounded mb-1">Trạm 3: Đo DC</button>
+                    <button onclick="jumpToStation(4)" class="w-full text-left bg-slate-700 hover:bg-slate-600 p-2 rounded mb-1">Trạm 5: Oscilloscope & AC</button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-slate-300">Bật Gợi ý</span>
+                    <input type="checkbox" id="settingHints" checked class="w-5 h-5">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button onclick="resetGame()" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-bold">RESET DATA</button>
+                <button onclick="closeModal('teacherModal')" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded text-sm font-bold">ĐÓNG</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Report Modal -->
+    <div id="reportModal" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 backdrop-blur-sm hidden">
+        <div class="bg-slate-800 p-8 rounded-xl border border-sky-600 max-w-3xl w-full shadow-[0_0_30px_rgba(14,165,233,0.3)]">
+            <h2 class="text-3xl font-bold text-center text-sky-400 mb-6 uppercase">Báo Cáo Năng Lực - Mạch EC</h2>
+            <div class="grid grid-cols-2 gap-8 mb-6">
+                <div>
+                    <h3 class="text-xl font-semibold mb-3 border-b border-slate-600 pb-2">Tổng Quan</h3>
+                    <p class="mb-2">Điểm kinh nghiệm: <span id="repXp" class="font-bold text-yellow-400"></span> XP</p>
+                    <p class="mb-2">Mức độ hoàn thành: <span id="repLevel" class="font-bold text-sky-400"></span></p>
+                    <p class="mb-2">Số lỗi mắc phải: <span id="repErrors" class="font-bold text-red-400"></span></p>
+                    <p class="mb-2">Gợi ý đã dùng: <span id="repHints" class="font-bold text-slate-300"></span></p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-3 border-b border-slate-600 pb-2">Thanh Năng Lực</h3>
+                    <div id="competencyBars" class="space-y-3">
+                        <!-- Bars injected via JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-900 p-4 rounded-lg mb-6 border border-slate-700">
+                <h4 class="font-bold text-yellow-400 mb-2">💡 Nội dung em cần luyện thêm:</h4>
+                <ul id="repAdvice" class="list-disc pl-5 text-sm text-slate-300 space-y-1"></ul>
+            </div>
+            <div class="text-center">
+                <button onclick="location.reload()" class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-3 rounded-lg font-bold transition text-lg shadow-lg">LUYỆN TẬP LẠI</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* --- GAME STATE --- */
+        const gameState = {
+            level: 'CƠ BẢN', // CƠ BẢN, KỸ THUẬT VIÊN, CHUYÊN GIA
+            xp: 0,
+            hearts: 3,
+            currentStation: 0,
+            mistakesCurrent: 0,
+            hintsUsed: 0,
+            stats: { errors: 0, identify: 100, build: 100, dc: 100, ac: 100, calc: 100 },
+            practiceMode: false
+        };
+
+        const CIRCUIT_PARAMS = {
+            Vcc: 12, R1: 47000, R2: 10000, Rc: 2200, Re: 1000, Beta: 100
+        };
+        
+        // Tính toán DC theo lý thuyết giáo trình
+        const DC_VALS = { Vb: 2.1, Ve: 1.4, Vc: 8.92, Vce: 7.52 };
+        const AC_VALS = { AvBypass: -123, AvNoBypass: -2.16 };
+
+        let oscilloscopeState = {
+            running: false, ch1On: true, ch2On: true,
+            voltsDiv1: 0.1, voltsDiv2: 5, // V/div
+            timeDiv: 0.5, // ms/div
+            freq: 1000, // Hz
+            ampIn: 0.2, // Vp-p (e.g. 200mVp-p -> A = 0.1V peak)
+            bypassOn: true,
+            phaseCompare: false,
+            time: 0,
+            probe1Node: null, probe2Node: null
+        };
+
+        let activeDmmProbe = null;
+        let activeScopeProbe = null;
+        let animationFrameId;
+
+        /* --- UI UTILS --- */
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        
+        function updateUI() {
+            document.getElementById('xpDisplay').innerText = gameState.xp;
+            document.getElementById('levelBadge').innerText = gameState.level;
+            
+            let heartsHtml = '';
+            for(let i=0; i<3; i++) { heartsHtml += i < gameState.hearts ? '❤️' : '🖤'; }
+            if(gameState.practiceMode) heartsHtml = '<span class="text-sky-400 text-sm">Chế độ luyện tập</span>';
+            document.getElementById('heartsContainer').innerHTML = heartsHtml;
+        }
+
+        function showToast(msg, type='info', duration=4000) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toastMessage');
+            msgEl.innerHTML = msg;
+            toast.className = `absolute top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-2xl z-50 transition-all duration-300 pointer-events-none text-center max-w-2xl text-white border ${type==='error'?'bg-red-900 border-red-500': type==='success'?'bg-green-900 border-green-500' : 'bg-sky-900 border-sky-500'}`;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translate(-50%, 10px)';
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translate(-50%, 0)'; }, duration);
+        }
+
+        function handleMistake(taskArea, hintMsg) {
+            gameState.stats.errors++;
+            gameState.mistakesCurrent++;
+            gameState.stats[taskArea] = Math.max(0, gameState.stats[taskArea] - 10);
+            
+            if(!gameState.practiceMode) {
+                gameState.hearts--;
+                if(gameState.hearts <= 0) {
+                    gameState.practiceMode = true;
+                    showToast('Hết năng lượng! Chuyển sang CHẾ ĐỘ LUYỆN TẬP. Bạn có thể tiếp tục mà không bị trừ điểm.', 'error', 5000);
+                } else {
+                    showToast('Chưa chính xác! Còn ' + gameState.hearts + ' năng lượng.', 'error');
+                }
+            } else {
+                showToast('Chưa chính xác! ' + (gameState.mistakesCurrent >= 2 ? '💡 GỢI Ý: ' + hintMsg : ''), 'error');
+            }
+            updateUI();
+        }
+
+        function handleSuccess(xpGain, msg) {
+            gameState.xp += xpGain;
+            gameState.mistakesCurrent = 0;
+            showToast('✅ ' + msg, 'success');
+            updateUI();
+        }
+
+        /* --- GAME FLOW --- */
+        function startGame(level) {
+            gameState.level = level;
+            closeModal('introModal');
+            updateUI();
+            renderStation(0);
+        }
+
+        function resetGame() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        function jumpToStation(idx) {
+            closeModal('teacherModal');
+            gameState.currentStation = idx;
+            renderStation(idx);
+        }
+
+        /* --- STATION RENDERER --- */
+        const stations = [
+            renderStation1_Identify,
+            renderStation2_Build,
+            renderStation3_DC,
+            renderStation4_SignalFlow,
+            renderStation5_AC
+        ];
+
+        function renderStation(idx) {
+            if(idx >= stations.length) { showFinalReport(); return; }
+            gameState.currentStation = idx;
+            const container = document.getElementById('stationContainer');
+            container.innerHTML = '';
+            stations[idx](container);
+        }
+
+        /* ================= STATION 1: IDENTIFY EC ================= */
+        function renderStation1_Identify(container) {
+            const html = `
+                <div class="flex-1 flex flex-col items-center justify-center bg-slate-800 rounded-xl border border-slate-700 p-6 shadow-lg">
+                    <h2 class="text-2xl font-bold text-sky-400 mb-2">TRẠM 1: FIND THE EC</h2>
+                    <p class="text-slate-300 mb-8 text-center max-w-2xl">Nhận biết cách mắc mạch khuếch đại: Mạch Emitter Chung (EC) là mạch có cực Emitter là cực chung giữa tín hiệu vào (Vin) và tín hiệu ra (Vout).</p>
+                    
+                    <div class="flex gap-12 items-center justify-center mb-8" id="s1-circuit-area">
+                        <!-- Abstract transistor symbol -->
+                        <div class="relative w-64 h-64 border-2 border-slate-600 rounded-lg bg-slate-900 flex items-center justify-center">
+                            <div class="absolute text-slate-500 font-bold opacity-20 text-4xl">NPN</div>
+                            <!-- Transistor Symbol SVG -->
+                            <svg width="120" height="120" viewBox="0 0 100 100" class="stroke-white stroke-2 fill-none">
+                                <circle cx="50" cy="50" r="40" stroke="#475569"/>
+                                <line x1="10" y1="50" x2="35" y2="50" /> <!-- Base -->
+                                <line x1="35" y1="30" x2="35" y2="70" stroke-width="4"/>
+                                <line x1="35" y1="40" x2="65" y2="15" /> <!-- Collector -->
+                                <line x1="35" y1="60" x2="65" y2="85" /> <!-- Emitter -->
+                                <polygon points="65,85 55,75 65,75" class="fill-white stroke-none" transform="rotate(-20 65 85)"/>
+                            </svg>
+                            <!-- Drop/Click Zones -->
+                            <div id="zone-b" class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-dashed border-sky-400 flex items-center justify-center text-xs font-bold bg-slate-800 cursor-pointer drop-zone" onclick="s1ClickTerminal('B')" ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="s1Drop(event, 'B')">B</div>
+                            
+                            <div id="zone-c" class="absolute right-4 top-4 w-8 h-8 rounded-full border-2 border-dashed border-sky-400 flex items-center justify-center text-xs font-bold bg-slate-800 cursor-pointer drop-zone" onclick="s1ClickTerminal('C')" ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="s1Drop(event, 'C')">C</div>
+                            
+                            <div id="zone-e" class="absolute right-4 bottom-4 w-8 h-8 rounded-full border-2 border-dashed border-sky-400 flex items-center justify-center text-xs font-bold bg-slate-800 cursor-pointer drop-zone" onclick="s1ClickTerminal('E')" ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="s1Drop(event, 'E')">E</div>
+                        </div>
+
+                        <!-- Draggables -->
+                        <div class="flex flex-col gap-6" id="s1-tools">
+                            <div class="text-center p-4 bg-slate-900 border border-slate-700 rounded-lg">
+                                <h3 class="text-sm text-slate-400 mb-3" id="s1-instruction">Nhiệm vụ 1: Bấm vào cực chung của mạch EC</h3>
+                                <div class="flex gap-4 justify-center" id="s1-draggables" style="display:none;">
+                                    <div class="px-4 py-2 bg-green-600 rounded font-bold draggable tooltip" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'Vin')">VIN
+                                        <span class="tooltip-text">Tín hiệu vào</span>
+                                    </div>
+                                    <div class="px-4 py-2 bg-red-600 rounded font-bold draggable tooltip" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'Vout')">VOUT
+                                        <span class="tooltip-text">Tín hiệu ra</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="s1-next" onclick="renderStation(1)" class="mt-8 bg-sky-600 hover:bg-sky-500 px-8 py-3 rounded-lg font-bold hidden transition">Tiếp tục: Lắp ráp mạch</button>
+                </div>
+            `;
+            container.innerHTML = html;
+            window.s1State = { step: 1 };
+        }
+
+        function s1ClickTerminal(term) {
+            if(window.s1State.step !== 1) return;
+            if(term === 'E') {
+                handleSuccess(10, 'Chính xác! EC (Emitter Chung) có cực E là cực chung, thường nối mass hoặc qua điện trở RE.');
+                document.getElementById('zone-e').classList.add('bg-green-600', 'border-solid');
+                document.getElementById('zone-e').innerText = 'E (GND)';
+                document.getElementById('s1-instruction').innerText = 'Nhiệm vụ 2 & 3: Kéo VIN vào cực nhận tín hiệu, VOUT vào cực lấy tín hiệu.';
+                document.getElementById('s1-draggables').style.display = 'flex';
+                window.s1State.step = 2;
+                window.s1State.vin = false;
+                window.s1State.vout = false;
+            } else {
+                handleMistake('identify', 'Tên mạch EC được xác định bởi cực chung. Hãy chọn cực Emitter.');
+            }
+        }
+
+        function s1Drop(e, term) {
+            e.preventDefault(); e.target.classList.remove('drag-over');
+            if(window.s1State.step !== 2) return;
+            const data = e.dataTransfer.getData('text/plain');
+            
+            if(data === 'Vin') {
+                if(term === 'B') {
+                    e.target.innerHTML = 'B<br><span class="text-[8px] text-green-300">VIN</span>';
+                    e.target.classList.add('border-solid', 'bg-slate-700');
+                    window.s1State.vin = true;
+                    handleSuccess(5, 'Đúng! Tín hiệu vào mạch EC đưa vào cực Base (B).');
+                } else { handleMistake('identify', 'Tín hiệu vào Vin của mạch EC đưa vào cực Base (B).'); }
+            } else if(data === 'Vout') {
+                if(term === 'C') {
+                    e.target.innerHTML = 'C<br><span class="text-[8px] text-red-300">VOUT</span>';
+                    e.target.classList.add('border-solid', 'bg-slate-700');
+                    window.s1State.vout = true;
+                    handleSuccess(5, 'Đúng! Tín hiệu ra mạch EC lấy tại cực Collector (C).');
+                } else { handleMistake('identify', 'Tín hiệu ra Vout của mạch EC lấy tại cực Collector (C).'); }
+            }
+
+            if(window.s1State.vin && window.s1State.vout) {
+                document.getElementById('s1-instruction').innerHTML = '<span class="text-green-400">Hoàn thành Trạm 1!</span>';
+                document.getElementById('s1-draggables').style.display = 'none';
+                document.getElementById('s1-next').classList.remove('hidden');
+            }
+        }
+
+        /* ================= STATION 2: BUILD EC ================= */
+        function renderStation2_Build(container) {
+            const html = `
+                <div class="flex-1 flex gap-6">
+                    <!-- Toolbox -->
+                    <div class="w-64 bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col shrink-0">
+                        <h3 class="text-lg font-bold text-sky-400 mb-4 border-b border-slate-600 pb-2">Linh kiện</h3>
+                        <p class="text-xs text-slate-400 mb-4">Sơ đồ lý thuyết (Hình 1.15). Kéo linh kiện vào đúng vị trí.</p>
+                        <div class="grid grid-cols-2 gap-3" id="s2-tray">
+                            ${['R1', 'R2', 'RC', 'RE', 'C1', 'C2', 'CE'].map(c => `
+                                <div class="bg-slate-700 p-2 rounded text-center font-mono font-bold text-sm draggable border border-slate-600 hover:bg-slate-600 tooltip" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', '${c}')" id="comp-${c}">
+                                    ${c}
+                                    <span class="tooltip-text">${getComponentTooltip(c)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="mt-auto">
+                            <button onclick="s2CheckCircuit()" class="w-full bg-sky-600 hover:bg-sky-500 py-2 rounded font-bold transition">🔍 KIỂM TRA MẠCH</button>
+                        </div>
+                    </div>
+
+                    <!-- Schematic Board -->
+                    <div class="flex-1 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center relative shadow-inner overflow-hidden">
+                        <h3 class="absolute top-4 left-4 font-bold text-slate-500">SƠ ĐỒ LÝ THUYẾT (Hình 1.15)</h3>
+                        
+                        <!-- Base Schematic Lines SVG -->
+                        <svg width="600" height="400" class="stroke-slate-500 stroke-2 fill-none absolute z-0 pointer-events-none">
+                            <!-- VCC Line -->
+                            <line x1="200" y1="50" x2="400" y2="50" class="stroke-red-500 stroke-[3]"/>
+                            <text x="300" y="40" class="fill-red-500 stroke-none text-sm font-bold text-center">VCC</text>
+                            
+                            <!-- GND Line -->
+                            <line x1="200" y1="350" x2="400" y2="350" class="stroke-sky-500 stroke-[3]"/>
+                            <text x="300" y="370" class="fill-sky-500 stroke-none text-sm font-bold text-center">GND</text>
+                            
+                            <!-- Vertical Bias Branch -->
+                            <line x1="250" y1="50" x2="250" y2="100"/>
+                            <line x1="250" y1="180" x2="250" y2="220"/>
+                            <line x1="250" y1="300" x2="250" y2="350"/>
+                            
+                            <!-- Vertical Collector/Emitter Branch -->
+                            <line x1="350" y1="50" x2="350" y2="100"/>
+                            <line x1="350" y1="180" x2="350" y2="200"/>
+                            <line x1="350" y1="260" x2="350" y2="280"/>
+                            <line x1="350" y1="340" x2="350" y2="350"/>
+
+                            <!-- Connect Bias to Base -->
+                            <line x1="250" y1="200" x2="310" y2="200"/>
+                            <!-- Input -->
+                            <line x1="100" y1="200" x2="150" y2="200"/>
+                            <line x1="210" y1="200" x2="250" y2="200"/>
+                            <text x="70" y="205" class="fill-green-400 stroke-none font-bold">Vin</text>
+
+                            <!-- Output -->
+                            <line x1="350" y1="150" x2="450" y2="150"/>
+                            <line x1="510" y1="150" x2="550" y2="150"/>
+                            <text x="560" y="155" class="fill-red-400 stroke-none font-bold">Vout</text>
+
+                            <!-- Bypass Cap branch -->
+                            <line x1="350" y1="270" x2="420" y2="270"/>
+                            <line x1="420" y1="270" x2="420" y2="290"/>
+                            <line x1="420" y1="330" x2="420" y2="350"/>
+                        </svg>
+
+                        <!-- Transistor fixed -->
+                        <div class="absolute w-16 h-16 border-2 border-slate-500 rounded-full flex items-center justify-center bg-slate-800 z-10" style="left: calc(50% + 10px); top: 50%; transform: translate(-50%, -50%);">
+                            <span class="text-xs font-bold text-slate-400">Q1</span>
+                        </div>
+
+                        <!-- Drop Zones for Components -->
+                        <!-- Bias network -->
+                        <div class="s2-slot absolute w-10 h-20 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% - 90px); top: 100px;" data-expect="R1" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">R_VCC_B</div>
+                        <div class="s2-slot absolute w-10 h-20 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% - 90px); top: 220px;" data-expect="R2" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">R_B_GND</div>
+                        
+                        <!-- Collector/Emitter -->
+                        <div class="s2-slot absolute w-10 h-20 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% + 10px); top: 100px;" data-expect="RC" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">R_VCC_C</div>
+                        <div class="s2-slot absolute w-10 h-16 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% + 10px); top: 280px;" data-expect="RE" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">R_E_GND</div>
+                        
+                        <!-- Caps -->
+                        <div class="s2-slot absolute w-16 h-10 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% - 190px); top: 180px;" data-expect="C1" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">C_IN</div>
+                        
+                        <div class="s2-slot absolute w-16 h-10 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% + 110px); top: 130px;" data-expect="C2" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">C_OUT</div>
+                        
+                        <div class="s2-slot absolute w-10 h-10 border-2 border-dashed border-sky-400 bg-slate-800/50 flex flex-col items-center justify-center z-20 text-[10px] text-sky-300/50 transition-colors" style="left: calc(50% + 80px); top: 290px;" data-expect="CE" ondragover="event.preventDefault(); this.classList.add('bg-sky-900/50')" ondragleave="this.classList.remove('bg-sky-900/50')" ondrop="s2Drop(event, this)">C_BYPASS</div>
+
+                        <button id="s2-next" onclick="renderStation(2)" class="absolute bottom-6 right-6 bg-green-600 hover:bg-green-500 px-6 py-2 rounded-lg font-bold hidden transition shadow-lg z-30">Tiếp tục: Cấp Nguồn & Đo DC</button>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function getComponentTooltip(c) {
+            const tips = {
+                'R1': 'Cùng R2 phân cực cho cực B bằng phương pháp cầu phân áp.',
+                'R2': 'Cùng R1 phân cực cho cực B bằng phương pháp cầu phân áp.',
+                'RC': 'Cấp điện một chiều cho cực C và là điện trở tải xoay chiều.',
+                'RE': 'Điện trở cực E giúp ổn định nhiệt cho transistor.',
+                'C1': 'Tụ ghép tín hiệu vào (ngăn DC).',
+                'C2': 'Tụ ghép tín hiệu ra (ngăn DC).',
+                'CE': 'Tụ bypass (thoát hơi xoay chiều); theo giáo trình giúp tăng hệ số khuếch đại AC.'
+            };
+            return tips[c] || '';
+        }
+
+        function s2Drop(e, el) {
+            e.preventDefault(); el.classList.remove('bg-sky-900/50');
+            const data = e.dataTransfer.getData('text/plain');
+            if(data) {
+                // If slot already has something, put it back in tray
+                if(el.dataset.filled) {
+                    document.getElementById('s2-tray').appendChild(document.getElementById('comp-' + el.dataset.filled));
+                }
+                const compEl = document.getElementById('comp-' + data);
+                el.innerHTML = '';
+                el.appendChild(compEl);
+                compEl.style.width = '100%'; compEl.style.height = '100%';
+                compEl.style.display = 'flex'; compEl.style.alignItems = 'center'; compEl.style.justifyContent = 'center';
+                el.dataset.filled = data;
+            }
+        }
+
+        function s2CheckCircuit() {
+            const slots = document.querySelectorAll('.s2-slot');
+            let allCorrect = true;
+            let errorMsg = '';
+
+            slots.forEach(slot => {
+                slot.style.borderColor = '#38bdf8'; // reset
+                const expect = slot.dataset.expect;
+                const actual = slot.dataset.filled;
+                if(actual !== expect) {
+                    allCorrect = false;
+                    slot.style.borderColor = '#ef4444';
+                    
+                    if(!actual) errorMsg = 'Mạch còn thiếu linh kiện.';
+                    else if(expect === 'R1' || expect === 'R2') errorMsg = 'Kiểm tra lại mạng phân cực cầu phân áp (R1, R2).';
+                    else if(expect === 'RC') errorMsg = 'RC phải nằm ở nhánh Collector.';
+                    else if(expect === 'RE') errorMsg = 'RE phải nằm ở nhánh Emitter để ổn định nhiệt.';
+                    else if(expect === 'C1') errorMsg = 'Kiểm tra lại đường ghép tín hiệu vào (C1).';
+                    else if(expect === 'C2') errorMsg = 'Kiểm tra lại đường ghép tín hiệu ra (C2).';
+                    else if(expect === 'CE') errorMsg = 'Tụ bypass CE phải mắc song song với RE.';
+                }
+            });
+
+            if(allCorrect) {
+                handleSuccess(20, 'Mạch EC đã lắp đúng theo Sơ đồ Hình 1.15. Có thể cấp nguồn.');
+                document.getElementById('s2-next').classList.remove('hidden');
+            } else {
+                handleMistake('build', errorMsg);
+            }
+        }
+
+        /* ================= UNIFIED LAB WORKBENCH (STATIONS 3, 4, 5, BOSS) ================= */
+        // This generates the core layout for the practical lab
+        function renderLabWorkbench(mode) { // modes: 'DC', 'FLOW', 'AC', 'BOSS'
+            let title = '';
+            if(mode==='DC') title = "TRẠM 3: THỰC NGHIỆM DC EC";
+            if(mode==='FLOW') title = "TRẠM 4: TRUY TÌM TÍN HIỆU AC";
+            if(mode==='AC') title = "TRẠM 5: OSCILLOSCOPE LAB";
+            if(mode==='BOSS') title = "BOSS: EC TROUBLESHOOTER";
+
+            const html = `
+                <div class="flex-1 flex flex-col h-full gap-4">
+                    <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700 shrink-0">
+                        <h2 class="text-xl font-bold text-sky-400">${title}</h2>
+                        <div id="lab-instructions" class="text-sm text-yellow-300 font-semibold bg-slate-900 px-4 py-2 rounded-md border border-slate-700">
+                            <!-- Instructions updated dynamically -->
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 flex gap-4 min-h-0">
+                        <!-- Schematic Area (Practical A2-2) -->
+                        <div class="flex-[3] bg-slate-900 rounded-xl border border-slate-700 relative shadow-inner overflow-hidden flex items-center justify-center" id="schematic-area">
+                            <h3 class="absolute top-4 left-4 font-bold text-slate-500 text-sm z-20">SƠ ĐỒ THỰC NGHIỆM AC (Hình A2-2)</h3>
+                            
+                            <!-- Probes Drag Source -->
+                            <div class="absolute top-4 right-4 flex gap-2 z-30" id="probe-sources">
+                                ${mode === 'DC' ? `
+                                    <div class="w-8 h-8 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-xs font-bold cursor-grab tooltip" draggable="true" ondragstart="startProbeDrag(event, 'DMM_V')">V<span class="tooltip-text">Que đỏ (Đo áp)</span></div>
+                                    <div class="w-8 h-8 rounded-full bg-black border-2 border-slate-400 flex items-center justify-center text-xs font-bold cursor-grab tooltip" draggable="true" ondragstart="startProbeDrag(event, 'DMM_COM')">C<span class="tooltip-text">Que đen (COM)</span></div>
+                                ` : ''}
+                                ${['AC', 'BOSS'].includes(mode) ? `
+                                    <div class="w-8 h-8 rounded bg-yellow-500 border-2 border-white flex items-center justify-center text-xs font-bold text-black cursor-grab tooltip" draggable="true" ondragstart="startProbeDrag(event, 'CH1')">CH1<span class="tooltip-text">Probe Kênh 1</span></div>
+                                    <div class="w-8 h-8 rounded bg-sky-500 border-2 border-white flex items-center justify-center text-xs font-bold text-black cursor-grab tooltip" draggable="true" ondragstart="startProbeDrag(event, 'CH2')">CH2<span class="tooltip-text">Probe Kênh 2</span></div>
+                                ` : ''}
+                            </div>
+
+                            <!-- Practical Schematic SVG -->
+                            <svg width="600" height="400" id="circuit-svg" class="stroke-slate-400 stroke-2 fill-none absolute z-0 pointer-events-none">
+                                <!-- VCC & GND -->
+                                <line x1="200" y1="60" x2="400" y2="60" class="stroke-red-500 stroke-[3]"/>
+                                <line x1="200" y1="360" x2="400" y2="360" class="stroke-sky-500 stroke-[3]"/>
+                                
+                                <!-- Wiring with animations for FLOW mode -->
+                                <g id="flow-wires" class="${mode==='FLOW'?'hidden':''}">
+                                    <line x1="120" y1="210" x2="260" y2="210" class="wire-flow flow-in hidden"/>
+                                    <line x1="260" y1="210" x2="330" y2="210" class="wire-flow flow-base hidden"/>
+                                    <line x1="330" y1="230" x2="330" y2="360" class="wire-flow flow-emit hidden"/>
+                                    <line x1="330" y1="60" x2="330" y2="190" class="wire-flow flow-col hidden"/>
+                                    <line x1="330" y1="160" x2="480" y2="160" class="wire-flow flow-out hidden"/>
+                                </g>
+
+                                <!-- R1, R2, Rc, Re -->
+                                <rect x="250" y="100" width="20" height="40" fill="#1e293b" class="stroke-slate-400"/> <text x="280" y="125" class="stroke-none fill-slate-300 text-xs">R1 (47k)</text>
+                                <rect x="250" y="260" width="20" height="40" fill="#1e293b" class="stroke-slate-400"/> <text x="280" y="285" class="stroke-none fill-slate-300 text-xs">R2 (10k)</text>
+                                <rect x="320" y="100" width="20" height="40" fill="#1e293b" class="stroke-slate-400"/> <text x="350" y="125" class="stroke-none fill-slate-300 text-xs">RC (2.2k)</text>
+                                <rect x="320" y="290" width="20" height="40" fill="#1e293b" class="stroke-slate-400"/> <text x="350" y="315" class="stroke-none fill-slate-300 text-xs">RE (1k)</text>
+
+                                <!-- Transistor lines -->
+                                <line x1="260" y1="60" x2="260" y2="100"/>
+                                <line x1="260" y1="140" x2="260" y2="260"/>
+                                <line x1="260" y1="300" x2="260" y2="360"/>
+                                <line x1="330" y1="60" x2="330" y2="100"/>
+                                <line x1="330" y1="140" x2="330" y2="290"/>
+                                <line x1="330" y1="330" x2="330" y2="360"/>
+                                <line x1="260" y1="210" x2="310" y2="210"/>
+
+                                <!-- Capacitors -->
+                                <line x1="160" y1="190" x2="160" y2="230" stroke-width="4"/> <line x1="170" y1="190" x2="170" y2="230" stroke-width="4"/>
+                                <text x="155" y="180" class="stroke-none fill-slate-300 text-xs font-bold">C1 (Vào)</text>
+                                <line x1="100" y1="210" x2="160" y2="210"/> <line x1="170" y1="210" x2="260" y2="210"/>
+
+                                <line x1="420" y1="140" x2="420" y2="180" stroke-width="4"/> <line x1="430" y1="140" x2="430" y2="180" stroke-width="4"/>
+                                <text x="415" y="130" class="stroke-none fill-slate-300 text-xs font-bold">C3 (Ra)</text>
+                                <line x1="330" y1="160" x2="420" y2="160"/> <line x1="430" y1="160" x2="490" y2="160"/>
+
+                                <!-- C2 (Bypass) in A2-2 schema -->
+                                <g id="c2-bypass-svg" class="transition-opacity ${oscilloscopeState.bypassOn ? 'opacity-100' : 'opacity-30'}">
+                                    <line x1="330" y1="270" x2="400" y2="270"/>
+                                    <line x1="400" y1="270" x2="400" y2="295"/>
+                                    <line x1="390" y1="295" x2="410" y2="295" stroke-width="4"/>
+                                    <line x1="390" y1="305" x2="410" y2="305" stroke-width="4"/>
+                                    <line x1="400" y1="305" x2="400" y2="360"/>
+                                    <text x="415" y="305" class="stroke-none fill-slate-300 text-xs font-bold">C2 (Bypass)</text>
+                                </g>
+
+                                <circle cx="330" cy="210" r="20" class="fill-slate-800 stroke-slate-400"/>
+                                <text x="322" y="214" class="stroke-none fill-slate-400 text-xs font-bold">Q1</text>
+                            </svg>
+
+                            <!-- Interactive Nodes -->
+                            <div class="node" style="left: calc(50% - 10px - 40px); top: calc(50% - 10px + 10px);" data-node="B" ondragover="event.preventDefault()" ondrop="dropProbe(event, 'B')" title="Cực Base (B)"></div>
+                            <div class="node" style="left: calc(50% - 10px + 30px); top: calc(50% - 10px - 70px);" data-node="C" ondragover="event.preventDefault()" ondrop="dropProbe(event, 'C')" title="Cực Collector (C)"></div>
+                            <div class="node" style="left: calc(50% - 10px + 30px); top: calc(50% - 10px + 70px);" data-node="E" ondragover="event.preventDefault()" ondrop="dropProbe(event, 'E')" title="Cực Emitter (E)"></div>
+                            <div class="node bg-sky-500 border-sky-400" style="left: calc(50% - 10px + 30px); top: calc(50% - 10px + 160px);" data-node="GND" ondragover="event.preventDefault()" ondrop="dropProbe(event, 'GND')" title="Điểm Mass (GND)"></div>
+                            
+                            <!-- Input/Output Nodes for AC -->
+                            <div class="node" style="left: calc(50% - 10px - 190px); top: calc(50% - 10px + 10px);" data-node="IN" ondragover="event.preventDefault()" ondrop="dropProbe(event, 'IN')" title="Điểm IN (Trước tụ C1)"></div>
+                            <div class="node" style="left: calc(50% - 10px + 200px); top: calc(50% - 10px - 40px);" data-node="OUT" ondragover="event.preventDefault()" ondrop="dropProbe(event, 'OUT')" title="Điểm OUT (Sau tụ C3)"></div>
+
+                            <!-- Flow specific overlay -->
+                            ${mode === 'FLOW' ? `<button onclick="runFlowAnimation()" class="absolute bottom-6 left-6 bg-green-600 px-4 py-2 rounded font-bold z-30 shadow-lg">▶ Chạy dòng tín hiệu</button>` : ''}
+                        </div>
+
+                        <!-- Right Panel: Equipment -->
+                        <div class="flex-[2] flex flex-col gap-4 overflow-y-auto h-full pr-2 pb-10" style="min-height: 0;">
+                            
+                            ${mode === 'DC' ? getDMMHTML() : ''}
+                            ${['AC', 'BOSS'].includes(mode) ? getACEquipmentHTML() : ''}
+                            
+                            <!-- Task Board / Calculator -->
+                            <div class="flex-none bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col shadow-lg min-h-[250px]">
+                                <h3 class="flex-none font-bold text-sky-400 border-b border-slate-600 pb-2 mb-2">Bảng Nhiệm Vụ</h3>
+                                <div id="task-board" class="flex-1 overflow-y-auto text-sm space-y-3 pr-2">
+                                    <!-- Injected based on mode -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return html;
+        }
+
+        /* --- EQUIPMENT RENDERERS --- */
+        function getDMMHTML() {
+            return `
+                <div class="bg-[#1e293b] rounded-xl border-4 border-slate-600 p-4 flex flex-col shrink-0 flex-none shadow-2xl">
+                    <div class="text-xs text-slate-400 font-bold mb-1">DIGITAL MULTIMETER</div>
+                    <div class="bg-[#9ca3af] h-16 rounded mb-4 flex items-center justify-end px-3 screen-glow relative shadow-inner">
+                        <span class="text-4xl font-mono-tech text-[#0f172a] tracking-widest font-bold" id="dmm-display">0.00</span>
+                        <span class="text-sm font-bold text-[#0f172a] ml-2 absolute bottom-1 right-2">V DC</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
+                        <span class="text-xs">Chế độ đo: <b class="text-sky-400">DC Voltage</b></span>
+                        <div class="flex gap-2 text-[10px]">
+                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-red-600 border border-white"></div>V (Đỏ) ở: <span id="dmm-v-pos" class="font-bold">-</span></div>
+                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-black border border-white"></div>COM (Đen) ở: <span id="dmm-c-pos" class="font-bold">-</span></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getACEquipmentHTML() {
+            return `
+                <!-- Function Generator -->
+                <div class="bg-slate-700 rounded-xl border-2 border-slate-500 p-3 shrink-0 flex-none relative overflow-hidden">
+                    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzMzMiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9zdmc+')] opacity-50 pointer-events-none"></div>
+                    <div class="text-xs text-slate-300 font-bold mb-2 flex justify-between">
+                        <span>FUNCTION GENERATOR</span>
+                        <span class="text-green-400">● ON</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-slate-800 p-2 rounded text-center border border-slate-600">
+                            <div class="text-[10px] text-slate-400">Waveform</div>
+                            <div class="text-sky-400 font-bold text-sm">~ SINE</div>
+                        </div>
+                        <div class="bg-slate-800 p-2 rounded text-center border border-slate-600">
+                            <div class="text-[10px] text-slate-400">Frequency</div>
+                            <div class="text-sky-400 font-bold text-sm">1 kHz</div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Amplitude (Vin p-p)</span><span id="fg-amp-val">200 mV</span></div>
+                        <input type="range" min="100" max="300" step="10" value="200" id="fg-amp" class="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer" oninput="updateFG()">
+                    </div>
+                </div>
+
+                <!-- Oscilloscope -->
+                <div class="bg-[#1e293b] rounded-xl border-4 border-slate-600 p-2 flex flex-col shrink-0 flex-none">
+                    <div class="flex justify-between items-center mb-1 px-1">
+                        <span class="text-xs text-slate-400 font-bold">OSCILLOSCOPE 2-CH</span>
+                        <div class="flex gap-2">
+                            <button onclick="toggleScope('compare')" class="text-[9px] bg-purple-700 hover:bg-purple-600 px-2 py-1 rounded text-white font-bold transition">SO SÁNH PHA</button>
+                            <button onclick="toggleScope('run')" id="btn-scope-run" class="text-[9px] bg-green-600 hover:bg-green-500 px-2 py-1 rounded text-white font-bold transition w-12">RUN</button>
+                        </div>
+                    </div>
+                    <!-- CRT Display -->
+                    <div class="bg-[#022c22] rounded border-2 border-slate-500 relative overflow-hidden screen-glow" style="height: 140px;">
+                        <canvas id="scopeCanvas" class="w-full h-full absolute inset-0"></canvas>
+                        <!-- Overlays -->
+                        <div class="absolute top-1 left-1 text-[9px] font-mono font-bold space-y-0.5" style="text-shadow: 1px 1px 0 #000;">
+                            <div class="text-yellow-400" id="scope-ch1-info">CH1: 50mV/div</div>
+                            <div class="text-sky-400" id="scope-ch2-info">CH2: 5V/div</div>
+                            <div class="text-slate-300">T: 0.5ms/div</div>
+                        </div>
+                        <div id="scope-warning" class="absolute inset-0 flex items-center justify-center text-red-500 font-bold text-sm bg-black bg-opacity-80 hidden z-20 backdrop-blur-sm">CHƯA ĐẶT QUE ĐO ĐÚNG VỊ TRÍ</div>
+                    </div>
+                    <!-- Controls -->
+                    <div class="flex justify-between mt-2 px-1">
+                        <div class="flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-yellow-400"></span><span class="text-[10px]">CH1 In: <b id="scope-p1">-</b></span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-sky-400"></span><span class="text-[10px]">CH2 Out: <b id="scope-p2">-</b></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+
+        /* ================= STATION 3: DC MODE LOGIC ================= */
+        function renderStation3_DC(container) {
+            container.innerHTML = renderLabWorkbench('DC');
+            document.getElementById('lab-instructions').innerText = "Nhiệm vụ: Đo VB, VE, VC và kiểm tra tính toán DC.";
+            window.s3State = { v_probe: null, com_probe: null, step: 1 };
+            
+            updateDCTaskBoard();
+        }
+
+        function updateDCTaskBoard() {
+            const tb = document.getElementById('task-board');
+            let content = '';
+            const s = window.s3State.step;
+            
+            content += `<div class="p-2 rounded ${s===1 ? 'bg-sky-900 border border-sky-500' : 'bg-slate-700 opacity-50'}"><b>Bước 1:</b> Kéo que V (Đỏ) vào cực Base (B), que COM (Đen) vào GND. Đọc $V_B$.</div>`;
+            content += `<div class="p-2 rounded ${s===2 ? 'bg-sky-900 border border-sky-500' : 'bg-slate-700 opacity-50'} mt-2"><b>Bước 2:</b> Chuyển que V vào cực Emitter (E). Đọc $V_E$.</div>`;
+            content += `<div class="p-2 rounded ${s===3 ? 'bg-sky-900 border border-sky-500' : 'bg-slate-700 opacity-50'} mt-2"><b>Bước 3:</b> Tính $V_{BE} = V_B - V_E$ để chứng minh transistor mở (~0.7V). <br><input type="number" id="inpVbe" step="0.1" class="w-16 bg-slate-900 border border-slate-500 rounded p-1 text-white text-xs mt-1"> <button onclick="checkVbe()" class="bg-green-600 hover:bg-green-500 px-2 py-1 rounded text-xs">Kiểm tra</button></div>`;
+            
+            if(s>3) {
+                content += `<div class="p-2 rounded bg-slate-700 mt-2"><b>Bước 4:</b> Đo $V_{CE}$ (Kéo que đỏ vào C, đen vào E).<br><input type="number" id="inpVce" step="0.01" class="w-16 bg-slate-900 border border-slate-500 rounded p-1 text-white text-xs mt-1"> <button onclick="checkVce()" class="bg-green-600 hover:bg-green-500 px-2 py-1 rounded text-xs">Kiểm tra</button></div>`;
+            }
+            if(s===5) {
+                content += `<button onclick="renderStation(3)" class="w-full mt-4 bg-green-600 hover:bg-green-500 py-2 rounded font-bold shadow-lg">Tiếp tục: Dòng tín hiệu</button>`;
+            }
+            
+            tb.innerHTML = content;
+        }
+
+        /* --- PROBE DRAG & DROP LOGIC --- */
+        function startProbeDrag(e, type) {
+            e.dataTransfer.setData('text/plain', type);
+        }
+
+        function dropProbe(e, node) {
+            const type = e.dataTransfer.getData('text/plain');
+            // Remove previous visuals
+            document.querySelectorAll('.node').forEach(el => {
+                if(el.dataset.node === node) {
+                    if(type==='DMM_V' || type==='DMM_COM') el.classList.add('active-probe-dmm');
+                    if(type==='CH1') el.classList.add('active-probe-ch1');
+                    if(type==='CH2') el.classList.add('active-probe-ch2');
+                }
+            });
+
+            if(type.startsWith('DMM')) {
+                if(type === 'DMM_V') { window.s3State.v_probe = node; document.getElementById('dmm-v-pos').innerText = node; }
+                if(type === 'DMM_COM') { window.s3State.com_probe = node; document.getElementById('dmm-c-pos').innerText = node; }
+                calculateDMM();
+            } else if (type.startsWith('CH')) {
+                if(type === 'CH1') { oscilloscopeState.probe1Node = node; document.getElementById('scope-p1').innerText = node; }
+                if(type === 'CH2') { oscilloscopeState.probe2Node = node; document.getElementById('scope-p2').innerText = node; }
+                checkScopeProbes();
+            }
+        }
+
+        function getDCVoltageAtNode(node) {
+            if(node === 'GND') return 0;
+            if(node === 'B') return DC_VALS.Vb;
+            if(node === 'E') return DC_VALS.Ve;
+            if(node === 'C') return DC_VALS.Vc;
+            return 0; // IN/OUT isolated by capacitors
+        }
+
+        function calculateDMM() {
+            if(!window.s3State.v_probe || !window.s3State.com_probe) return;
+            const valV = getDCVoltageAtNode(window.s3State.v_probe);
+            const valC = getDCVoltageAtNode(window.s3State.com_probe);
+            const res = Math.abs(valV - valC); // Simplified for DMM
+            document.getElementById('dmm-display').innerText = res.toFixed(2);
+
+            // Task logic
+            if(window.s3State.step === 1 && window.s3State.v_probe === 'B' && window.s3State.com_probe === 'GND') {
+                handleSuccess(10, 'Đã đo được VB = 2.10V');
+                window.s3State.step = 2;
+                updateDCTaskBoard();
+            } else if(window.s3State.step === 2 && window.s3State.v_probe === 'E' && window.s3State.com_probe === 'GND') {
+                handleSuccess(10, 'Đã đo được VE = 1.40V');
+                window.s3State.step = 3;
+                updateDCTaskBoard();
+            }
+        }
+
+        function checkVbe() {
+            const val = parseFloat(document.getElementById('inpVbe').value);
+            if(Math.abs(val - 0.7) < 0.1) {
+                handleSuccess(10, 'Chính xác! V_BE ≈ 0.7V chứng tỏ tiếp giáp B-E phân cực thuận, transistor hoạt động.');
+                window.s3State.step = 4;
+                updateDCTaskBoard();
+            } else { handleMistake('dc', 'Tính: VB - VE = 2.1 - 1.4 = ?'); }
+        }
+
+        function checkVce() {
+            const val = parseFloat(document.getElementById('inpVce').value);
+            if(Math.abs(val - DC_VALS.Vce) < 0.2) {
+                // Must ensure probes were placed on C and E
+                if( (window.s3State.v_probe==='C' && window.s3State.com_probe==='E') || (window.s3State.v_probe==='E' && window.s3State.com_probe==='C') ) {
+                    handleSuccess(20, 'Xuất sắc! Đã đo và tính đúng V_CE = 7.52V. Điểm làm việc tĩnh đã được xác định.');
+                    window.s3State.step = 5;
+                    updateDCTaskBoard();
+                } else {
+                    handleMistake('dc', 'Vui lòng kéo que đo vào đúng cực C và cực E trên sơ đồ để đo trước khi nhập.');
+                }
+            } else { handleMistake('dc', 'Kiểm tra lại giá trị đo hiển thị trên DMM.'); }
+        }
+
+        /* ================= STATION 4: SIGNAL FLOW ================= */
+        function renderStation4_SignalFlow(container) {
+            container.innerHTML = renderLabWorkbench('FLOW');
+            document.getElementById('lab-instructions').innerText = "Nhiệm vụ: Quan sát dòng tín hiệu AC (Hình A2-2)";
+            
+            const tb = document.getElementById('task-board');
+            tb.innerHTML = `
+                <div class="p-3 bg-slate-700 rounded text-sm mb-4 leading-relaxed">
+                    <b class="text-sky-400">Nguyên lý hoạt động AC:</b><br>
+                    1. Tín hiệu AC (Vin) đi qua tụ ghép C1 (ngăn DC).<br>
+                    2. Đưa vào cực Base (B), làm thay đổi dòng IB.<br>
+                    3. Do tính chất khuếch đại dòng ($\beta$), dòng IC thay đổi lớn theo hàm IC = $\beta$ * IB.<br>
+                    4. Dòng IC chạy qua RC tạo ra sụt áp xoay chiều lớn tại cực C (ngược pha 180°).<br>
+                    5. Tín hiệu ra Vout qua tụ C3 ra tải.
+                </div>
+                <div class="mt-auto">
+                    <button id="btn-flow-next" onclick="renderStation(4)" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold transition hidden shadow-lg">Tiếp tục: Chuyên gia Oscilloscope</button>
+                </div>
+            `;
+        }
+
+        function runFlowAnimation() {
+            document.getElementById('flow-wires').classList.remove('hidden');
+            const classes = ['.flow-in', '.flow-base', '.flow-col', '.flow-emit', '.flow-out'];
+            classes.forEach(c => document.querySelector(c).classList.add('hidden'));
+            
+            let delay = 0;
+            classes.forEach((c, i) => {
+                setTimeout(() => {
+                    document.querySelector(c).classList.remove('hidden');
+                    // Add pulse effect to nodes
+                    if(i===1) document.querySelector('[data-node="B"]').classList.add('anim-signal');
+                    if(i===3) { document.querySelector('[data-node="C"]').classList.add('anim-signal'); document.querySelector('[data-node="B"]').classList.remove('anim-signal'); }
+                }, delay);
+                delay += 800;
+            });
+
+            setTimeout(() => {
+                document.querySelectorAll('.node').forEach(n => n.classList.remove('anim-signal'));
+                document.getElementById('btn-flow-next').classList.remove('hidden');
+                handleSuccess(10, 'Đã hoàn thành quan sát nguyên lý!');
+            }, delay + 1000);
+        }
+
+        /* ================= STATION 5: AC & OSCILLOSCOPE ================= */
+        function renderStation5_AC(container) {
+            container.innerHTML = renderLabWorkbench('AC');
+            document.getElementById('lab-instructions').innerText = "Nhiệm vụ: Đo đạc và Tính Hệ số khuếch đại Av.";
+            window.s5State = { step: 1, bypassToggleAllowed: false };
+            oscilloscopeState.running = false;
+            updateACTaskBoard();
+            initScope();
+        }
+
+        function updateACTaskBoard() {
+            const tb = document.getElementById('task-board');
+            let content = '';
+            const s = window.s5State.step;
+            
+            content += `<div class="p-2 rounded ${s===1 ? 'bg-sky-900 border border-sky-500' : 'bg-slate-700 opacity-50'} text-xs"><b>Bước 1:</b> Kéo que CH1(Vàng) vào điểm IN, CH2(Xanh) vào OUT. Nhấn RUN trên Oscilloscope.</div>`;
+            
+            if(s>=2) {
+                content += `<div class="p-2 rounded ${s===2 ? 'bg-sky-900 border border-sky-500' : 'bg-slate-700 opacity-50'} mt-2 text-xs"><b>Bước 2:</b> Bấm "So sánh pha". Dạng sóng Vout so với Vin như thế nào?
+                    <div class="mt-1 flex gap-2">
+                        <button onclick="checkPhase('cung')" class="bg-slate-600 px-2 py-1 rounded hover:bg-slate-500">Cùng pha</button>
+                        <button onclick="checkPhase('nguoc')" class="bg-slate-600 px-2 py-1 rounded hover:bg-slate-500">Đảo pha 180°</button>
+                    </div>
+                </div>`;
+            }
+            if(s>=3) {
+                content += `<div class="p-2 rounded ${s===3 ? 'bg-sky-900 border border-sky-500' : 'bg-slate-700 opacity-50'} mt-2 text-xs">
+                    <b>Bước 3:</b> Tính $A_v = V_{out} / V_{in}$.<br>
+                    <i>Gợi ý: Vin = ${oscilloscopeState.ampIn * 1000}mV, đọc biên độ (peak-to-peak) trên màn hình hoặc dùng công thức lý thuyết (có Bypass). Đừng quên dấu trừ (-) thể hiện sự đảo pha.</i><br>
+                    <input type="number" id="inpAv" step="0.1" class="w-16 bg-slate-900 border border-slate-500 rounded p-1 text-white text-xs mt-1" placeholder="-XX"> 
+                    <button onclick="checkAv()" class="bg-green-600 hover:bg-green-500 px-2 py-1 rounded text-xs">Kiểm tra</button>
+                </div>`;
+            }
+            if(s>=4) {
+                content += `<div class="p-2 rounded ${s===4 ? 'bg-purple-900 border border-purple-500' : 'bg-slate-700 opacity-50'} mt-2 text-xs">
+                    <b>Bước 4 (Nâng cao):</b> Theo giáo trình, nếu tháo tụ Bypass C2 (ở cực E), Hệ số khuếch đại sẽ:<br>
+                    <div class="mt-1 flex gap-2">
+                        <button onclick="checkBypassTheory('tang')" class="bg-slate-600 px-2 py-1 rounded hover:bg-slate-500">Tăng mạnh</button>
+                        <button onclick="checkBypassTheory('giam')" class="bg-slate-600 px-2 py-1 rounded hover:bg-slate-500">Giảm mạnh</button>
+                    </div>
+                </div>`;
+            }
+            if(s===5) {
+                content += `
+                    <div class="mt-2 flex items-center justify-between bg-slate-700 p-2 rounded text-xs">
+                        <span>Công tắc Tụ Bypass (C2):</span>
+                        <button id="btn-bypass-toggle" onclick="toggleBypass()" class="bg-green-600 px-3 py-1 rounded font-bold">ĐANG BẬT</button>
+                    </div>
+                    <button onclick="renderStation(5)" class="w-full mt-4 bg-red-600 hover:bg-red-500 py-2 rounded font-bold shadow-lg animate-pulse">ĐẾN TRẠM CUỐI: BOSS</button>`;
+            }
+            
+            tb.innerHTML = content;
+        }
+
+        /* --- OSCILLOSCOPE ENGINE --- */
+        function initScope() {
+            const canvas = document.getElementById('scopeCanvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            // Fix resolution
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width; canvas.height = rect.height;
+            drawScopeFrame();
+        }
+
+        function updateFG() {
+            const val = document.getElementById('fg-amp').value;
+            document.getElementById('fg-amp-val').innerText = val + ' mV';
+            oscilloscopeState.ampIn = val / 1000; // to Volts
+        }
+
+        function checkScopeProbes() {
+            const w = document.getElementById('scope-warning');
+            if(oscilloscopeState.probe1Node === 'IN' && oscilloscopeState.probe2Node === 'OUT') {
+                w.classList.add('hidden');
+                if(window.s5State && window.s5State.step === 1 && oscilloscopeState.running) {
+                    handleSuccess(15, 'Tuyệt! Đã đặt đúng que đo và khởi động Oscilloscope.');
+                    window.s5State.step = 2;
+                    updateACTaskBoard();
+                }
+            } else {
+                if(oscilloscopeState.running) w.classList.remove('hidden');
+            }
+        }
+
+        function toggleScope(action) {
+            if(action === 'run') {
+                oscilloscopeState.running = !oscilloscopeState.running;
+                const btn = document.getElementById('btn-scope-run');
+                if(oscilloscopeState.running) {
+                    btn.classList.replace('bg-green-600', 'bg-red-600'); btn.innerText = 'STOP';
+                    checkScopeProbes();
+                    if(!animationFrameId) scopeLoop();
+                } else {
+                    btn.classList.replace('bg-red-600', 'bg-green-600'); btn.innerText = 'RUN';
+                    cancelAnimationFrame(animationFrameId); animationFrameId = null;
+                }
+            } else if(action === 'compare') {
+                oscilloscopeState.phaseCompare = !oscilloscopeState.phaseCompare;
+            }
+        }
+
+        function toggleBypass() {
+            oscilloscopeState.bypassOn = !oscilloscopeState.bypassOn;
+            const btn = document.getElementById('btn-bypass-toggle');
+            const svgEl = document.getElementById('c2-bypass-svg');
+            
+            if(oscilloscopeState.bypassOn) {
+                btn.classList.replace('bg-red-600', 'bg-green-600'); btn.innerText = 'ĐANG BẬT';
+                svgEl.classList.replace('opacity-30', 'opacity-100');
+                // Adjust scope scale dynamically to keep it on screen
+                oscilloscopeState.voltsDiv2 = 5;
+                document.getElementById('scope-ch2-info').innerText = 'CH2: 5V/div';
+            } else {
+                btn.classList.replace('bg-green-600', 'bg-red-600'); btn.innerText = 'ĐÃ NGẮT';
+                svgEl.classList.replace('opacity-100', 'opacity-30');
+                oscilloscopeState.voltsDiv2 = 0.1; // 100mV/div since output is small now
+                document.getElementById('scope-ch2-info').innerText = 'CH2: 100mV/div';
+            }
+        }
+
+        function scopeLoop() {
+            if(!oscilloscopeState.running) return;
+            drawScopeFrame();
+            oscilloscopeState.time += 0.05;
+            animationFrameId = requestAnimationFrame(scopeLoop);
+        }
+
+        function drawScopeFrame() {
+            const canvas = document.getElementById('scopeCanvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width; const h = canvas.height;
+            const midY = h / 2;
+            
+            ctx.clearRect(0, 0, w, h);
+            
+            // Draw Grid
+            ctx.strokeStyle = '#064e3b'; // dark green grid
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const divX = w / 10; const divY = h / 8;
+            for(let i=1; i<10; i++) { ctx.moveTo(i*divX, 0); ctx.lineTo(i*divX, h); }
+            for(let i=1; i<8; i++) { ctx.moveTo(0, i*divY); ctx.lineTo(w, i*divY); }
+            ctx.stroke();
+
+            // Center lines
+            ctx.strokeStyle = '#059669'; ctx.beginPath();
+            ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h);
+            ctx.moveTo(0, midY); ctx.lineTo(w, midY);
+            ctx.stroke();
+
+            if(oscilloscopeState.probe1Node !== 'IN' || oscilloscopeState.probe2Node !== 'OUT') return;
+
+            const t_offset = oscilloscopeState.time;
+            const freqMultiplier = 0.05; // Visual scaling for 1kHz
+
+            // Av Logic
+            const Av = oscilloscopeState.bypassOn ? AC_VALS.AvBypass : AC_VALS.AvNoBypass;
+            const vInPeak = oscilloscopeState.ampIn / 2; // e.g., 200mVpp -> 100mV peak = 0.1V
+            const vOutPeak = Math.abs(Av) * vInPeak;
+
+            // Pixels per Volt mapping
+            // CH1: 50mV/div (0.05V/div) -> 1 div = divY pixels => 1V = divY / 0.05 = 20 * divY
+            const pxPerVolt1 = divY / oscilloscopeState.voltsDiv1;
+            // CH2: voltsDiv2 V/div => 1V = divY / voltsDiv2
+            const pxPerVolt2 = divY / oscilloscopeState.voltsDiv2;
+
+            // Draw Phase Comparison Lines first (under waves)
+            if(oscilloscopeState.phaseCompare) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                for(let x=0; x<w; x++) {
+                    const angle = x * freqMultiplier + t_offset;
+                    const sin = Math.sin(angle);
+                    // Draw line at peaks
+                    if(Math.abs(sin) > 0.99) {
+                        ctx.moveTo(x, 0); ctx.lineTo(x, h);
+                    }
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Draw CH1 (Vin) - Yellow
+            ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let x=0; x<w; x++) {
+                // Signal: Vin = Vp * sin(wt)
+                const val = vInPeak * Math.sin(x * freqMultiplier + t_offset);
+                const y = midY - (val * pxPerVolt1);
+                if(x===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw CH2 (Vout) - Sky Blue
+            // Inverted phase due to CE circuit (negative Av)
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let x=0; x<w; x++) {
+                // Signal: Vout = Av * Vin = -|Av| * Vp * sin(wt) -> implies Phase Shift!
+                const val = -vOutPeak * Math.sin(x * freqMultiplier + t_offset);
+                const y = midY - (val * pxPerVolt2);
+                if(x===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        /* --- AC TASK CHECKS --- */
+        function checkPhase(ans) {
+            if(window.s5State.step !== 2) return;
+            if(ans === 'nguoc') {
+                handleSuccess(15, 'Chính xác! Mạch EC tạo tín hiệu ra đảo pha 180° so với tín hiệu vào.');
+                window.s5State.step = 3; updateACTaskBoard();
+            } else {
+                handleMistake('ac', 'Hãy bật chế độ SO SÁNH PHA và quan sát đỉnh sóng của CH1 (vàng) và CH2 (xanh) tại cùng một thời điểm.');
+            }
+        }
+
+        function checkAv() {
+            if(window.s5State.step !== 3) return;
+            const val = parseFloat(document.getElementById('inpAv').value);
+            // Accept approximate Av value
+            if(Math.abs(val - AC_VALS.AvBypass) < 10) {
+                handleSuccess(20, 'Đúng! Hệ số khuếch đại Av ≈ -123. Dấu trừ thể hiện sự đảo pha.');
+                window.s5State.step = 4; updateACTaskBoard();
+            } else {
+                handleMistake('calc', `Hãy kiểm tra lại. Theo lý thuyết, Av ≈ -RC/re = -2200/17.8 = -123. Hoặc đọc Vout_p-p / Vin_p-p từ màn hình. Nhớ thêm dấu '-'.`);
+            }
+        }
+
+        function checkBypassTheory(ans) {
+            if(window.s5State.step !== 4) return;
+            if(ans === 'giam') {
+                handleSuccess(15, 'Rất tốt! Nếu bỏ tụ Bypass, phản hồi âm xoay chiều tăng lên, làm hệ số khuếch đại giảm mạnh (Av ≈ -RC/RE).');
+                window.s5State.step = 5; updateACTaskBoard();
+                window.s5State.bypassToggleAllowed = true;
+            } else {
+                handleMistake('ac', 'Theo giáo trình: Tụ CE (bypass) giúp thoát hơi xoay chiều, loại bỏ phản hồi âm dòng điện xoay chiều. Nếu bỏ nó đi thì sao?');
+            }
+        }
+
+
+        /* ================= STATION 6: BOSS (TROUBLESHOOTER) ================= */
+        function renderStation5_Boss(container) {
+            // Note: reusing renderLabWorkbench('BOSS') which is same as AC but with errors injected
+            container.innerHTML = renderLabWorkbench('BOSS');
+            document.getElementById('lab-instructions').innerText = "⚠ CẢNH BÁO: MẠCH ĐANG BỊ LỖI LẮP RÁP. Hãy tìm và sửa.";
+            
+            // Inject an error: Remove R_C wire visually and functionally
+            document.querySelector('rect[x="320"][y="100"]').classList.add('hidden'); // Hide RC
+            const tb = document.getElementById('task-board');
+            
+            tb.innerHTML = `
+                <div class="p-3 bg-red-900 border border-red-500 rounded text-sm mb-4">
+                    <b>BÁO CÁO LỖI:</b> Không có tín hiệu ở ngõ ra (CH2 đường thẳng).<br><br>
+                    <b>Nhiệm vụ:</b>
+                    <ol class="list-decimal pl-5 mt-2 space-y-1">
+                        <li>Dùng mắt quan sát sơ đồ A2-2 để tìm linh kiện bị thiếu.</li>
+                        <li>Click vào vị trí lỗi để sửa mạch.</li>
+                        <li>Sau khi sửa, đo và kiểm tra lại sự hoạt động của mạch trên Scope.</li>
+                    </ol>
+                </div>
+                <!-- Interactive transparent rect to catch the click for fixing -->
+                <div id="fix-zone" style="position:absolute; left:320px; top:100px; width:40px; height:60px; cursor:pointer; z-index:40; border: 2px dashed #ef4444; background: rgba(239, 68, 68, 0.2);" onclick="bossFixError()" class="tooltip">
+                    <span class="tooltip-text">Khu vực nghi ngờ lỗi</span>
+                </div>
+                <button id="btn-boss-finish" onclick="finishGame()" class="w-full bg-sky-600 hover:bg-sky-500 py-3 rounded font-bold transition hidden shadow-lg uppercase text-lg mt-8">🏆 Hoàn thành khóa huấn luyện</button>
+            `;
+            
+            // Force scope CH2 to 0
+            window.bossErrorActive = true;
+            
+            // Monkey patch the scope drawing specifically for the boss
+            const originalDraw = drawScopeFrame;
+            window.bossDrawOverride = function() {
+                if(window.bossErrorActive) {
+                    // Temporarily store original value
+                    const realAmp = oscilloscopeState.ampIn;
+                    // Mute CH2 by forcing calculation in the original function to think Av = 0
+                    const oldAvB = AC_VALS.AvBypass;
+                    const oldAvN = AC_VALS.AvNoBypass;
+                    AC_VALS.AvBypass = 0; AC_VALS.AvNoBypass = 0;
+                    
+                    originalDraw();
+                    
+                    AC_VALS.AvBypass = oldAvB; AC_VALS.AvNoBypass = oldAvN;
+                } else {
+                    originalDraw(); // Normal drawing once fixed
+                }
+            };
+            
+            // Replace the animation loop reference indirectly by redefining drawScopeFrame isn't easy,
+            // so we handle it inside the existing loop logic or modify the values directly.
+            // Better approach: just modify AC_VALS for the duration of the boss until fixed.
+            window.backupAvB = AC_VALS.AvBypass;
+            window.backupAvN = AC_VALS.AvNoBypass;
+            AC_VALS.AvBypass = 0;
+            AC_VALS.AvNoBypass = 0;
+            
+            initScope();
+        }
+
+        // Overriding the render list routing slightly for the boss
+        stations[5] = renderStation5_Boss;
+
+        function bossFixError() {
+            document.querySelector('rect[x="320"][y="100"]').classList.remove('hidden'); // Show RC
+            document.getElementById('fix-zone').remove();
+            
+            // Restore functionality
+            window.bossErrorActive = false;
+            AC_VALS.AvBypass = window.backupAvB;
+            AC_VALS.AvNoBypass = window.backupAvN;
+            
+            handleSuccess(50, 'GIẢI CỨU THÀNH CÔNG! Điện trở RC đã được gắn lại. Tín hiệu Vout đã xuất hiện!');
+            document.getElementById('btn-boss-finish').classList.remove('hidden');
+        }
+
+        /* ================= FINAL REPORT ================= */
+        function finishGame() {
+            cancelAnimationFrame(animationFrameId);
+            showFinalReport();
+        }
+
+        function showFinalReport() {
+            closeModal('teacherModal');
+            openModal('reportModal');
+            document.getElementById('repXp').innerText = gameState.xp;
+            document.getElementById('repLevel').innerText = gameState.level;
+            document.getElementById('repErrors').innerText = gameState.stats.errors;
+            document.getElementById('repHints').innerText = gameState.hintsUsed;
+
+            const bars = document.getElementById('competencyBars');
+            bars.innerHTML = '';
+            const metrics = [
+                {k: 'identify', name: 'Nhận biết mạch EC'},
+                {k: 'build', name: 'Lắp ráp mạch'},
+                {k: 'dc', name: 'Đo đạc & Tính DC'},
+                {k: 'ac', name: 'Phân tích Oscilloscope'},
+                {k: 'calc', name: 'Tính Hệ số khuếch đại'}
+            ];
+
+            const adviceList = [];
+
+            metrics.forEach(m => {
+                const score = gameState.stats[m.k];
+                let color = 'bg-green-500';
+                if(score < 80) color = 'bg-yellow-500';
+                if(score < 50) color = 'bg-red-500';
+
+                bars.innerHTML += `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>${m.name}</span>
+                            <span>${score}%</span>
+                        </div>
+                        <div class="w-full bg-slate-700 h-2 rounded overflow-hidden">
+                            <div class="${color} h-full" style="width: ${score}%"></div>
+                        </div>
+                    </div>
+                `;
+
+                if(score < 80) {
+                    if(m.k === 'identify') adviceList.push('Cần ôn lại định nghĩa các cực của Transistor (B, C, E) và đặc điểm nhận dạng mạch EC.');
+                    if(m.k === 'build') adviceList.push('Xem kỹ lại Sơ đồ Hình 1.15 và tác dụng của từng linh kiện (R phân cực, tụ bypass).');
+                    if(m.k === 'dc') adviceList.push('Luyện tập thêm công thức tính Điểm làm việc tĩnh (VB, VE, IC, VCE).');
+                    if(m.k === 'ac') adviceList.push('Cần quan sát kỹ sự đảo pha 180° của dạng sóng và cách thiết lập que đo trên máy hiện sóng.');
+                    if(m.k === 'calc') adviceList.push('Nhớ công thức Av ≈ -RC/re (có tụ CE) và lưu ý đơn vị khi chia Vout/Vin.');
+                }
+            });
+
+            const adUl = document.getElementById('repAdvice');
+            if(adviceList.length === 0) {
+                adUl.innerHTML = '<li class="text-green-400">Tuyệt vời! Em đã nắm rất vững kiến thức thực hành mạch EC.</li>';
+            } else {
+                adUl.innerHTML = adviceList.map(a => `<li>${a}</li>`).join('');
+            }
+        }
+
+        // INIT
+        window.onload = () => {
+            openModal('introModal');
+        };
+
+    </script>
+</body>
+</html>
